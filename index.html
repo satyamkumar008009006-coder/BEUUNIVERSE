@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BEU Study Hub: a video for every topic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1b2a6b;--paper:#f7f8fc;--card:#fff;--line:#d9ddee;--hi:#ffb400;--ok:#1e8e5a;--mute:#5b6490}
+@media (prefers-color-scheme:dark){:root{--ink:#dfe5ff;--paper:#0f1430;--card:#171d42;--line:#2a3269;--mute:#9aa5d6}}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Plus Jakarta Sans",system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.5}
+header{padding:28px 20px 8px;max-width:1000px;margin:auto}
+h1{font-size:clamp(26px,5vw,40px);margin:0;font-weight:800;letter-spacing:-.02em}
+header p{margin:6px 0 0;color:var(--mute)}
+main{max-width:1000px;margin:auto;padding:16px 20px 60px}
+.bar{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+select,input{font:inherit;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
+input{flex:1;min-width:180px}
+:focus-visible{outline:3px solid var(--hi);outline-offset:2px}
+.prog{height:8px;background:var(--line);border-radius:8px;overflow:hidden;margin:6px 0 18px}
+.prog i{display:block;height:100%;background:var(--ok);width:0;transition:width .3s}
+.subj{background:var(--card);border:1.5px solid var(--line);border-radius:14px;margin-bottom:14px;overflow:hidden}
+.subj>h2{margin:0;padding:14px 16px;font-size:18px;border-bottom:1.5px solid var(--line);display:flex;justify-content:space-between;gap:8px}
+.subj>h2 small{color:var(--mute);font-weight:600}
+.topic{border-bottom:1px solid var(--line)}
+.topic:last-child{border:0}
+.row{display:flex;align-items:center;gap:12px;padding:12px 16px}
+.row button.t{flex:1;text-align:left;background:none;border:0;font:inherit;font-weight:600;color:var(--ink);cursor:pointer;padding:4px 0}
+.chk{width:22px;height:22px;accent-color:var(--ok)}
+.done .t{text-decoration:line-through;color:var(--mute)}
+.panel{padding:0 16px 16px;display:none}
+.open .panel{display:block}
+.vid{aspect-ratio:16/9;width:100%;border:0;border-radius:10px;background:#000}
+.btn{display:inline-block;margin:8px 8px 0 0;padding:9px 14px;border-radius:10px;background:var(--hi);color:#1b1b1b;font-weight:700;text-decoration:none}
+.btn.alt{background:transparent;border:1.5px solid var(--line);color:var(--ink)}
+.empty{padding:30px;text-align:center;color:var(--mute)}
+</style>
+</head>
+<body>
+<header>
+  <h1>BEU Study Hub</h1>
+  <p>Pick your branch and semester. Watch the video for each topic and tick it off.</p>
+</header>
+<main>
+  <div class="bar">
+    <select id="branch" aria-label="Branch"></select>
+    <select id="sem" aria-label="Semester"></select>
+    <input id="q" type="search" placeholder="Search a topic, e.g. stack" aria-label="Search topics">
+  </div>
+  <div id="pct" style="font-weight:600"></div>
+  <div class="prog"><i id="bar"></i></div>
+  <div id="list"></div>
+</main>
+<script src="data.js"></script>
+<script>
+const D = window.BEU_DATA, $ = id => document.getElementById(id);
+let done = {};
+try { done = JSON.parse(localStorage.getItem("beu-done") || "{}"); } catch (e) {}
+const save = () => { try { localStorage.setItem("beu-done", JSON.stringify(done)); } catch (e) {} };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+$("branch").innerHTML = D.map((b, i) => `<option value="${i}">${esc(b.branch)}</option>`).join("");
+function fillSem() {
+  const b = D[$("branch").value];
+  $("sem").innerHTML = b.semesters.map((s, i) => `<option value="${i}">Semester ${s.sem}</option>`).join("");
+}
+function render() {
+  const s = D[$("branch").value].semesters[$("sem").value];
+  const q = $("q").value.trim().toLowerCase();
+  let total = 0, got = 0, html = "";
+  s.subjects.forEach(sub => {
+    const items = sub.topics.map(t => ({ t, id: `${sub.code}:${t.title}` }));
+    items.forEach(x => { total++; if (done[x.id]) got++; });
+    const shown = items.filter(x => !q || x.t.title.toLowerCase().includes(q) || sub.name.toLowerCase().includes(q));
+    if (!shown.length) return;
+    html += `<section class="subj"><h2>${esc(sub.name)} <small>${esc(sub.code)}</small></h2>` + shown.map(x => {
+      const yt = "https://www.youtube.com/results?search_query=" + encodeURIComponent(`${sub.name} ${x.t.title} BEU`);
+      return `<div class="topic ${done[x.id] ? "done" : ""}" data-id="${esc(x.id)}">
+        <div class="row">
+          <input class="chk" type="checkbox" ${done[x.id] ? "checked" : ""} aria-label="Mark ${esc(x.t.title)} as done">
+          <button class="t">${esc(x.t.title)}</button>
+        </div>
+        <div class="panel">
+          ${x.t.video ? `<iframe class="vid" loading="lazy" allowfullscreen title="${esc(x.t.title)}" src="https://www.youtube-nocookie.com/embed/${esc(x.t.video)}"></iframe>` : `<p>No video added yet for this topic.</p>`}
+          <a class="btn ${x.t.video ? "alt" : ""}" target="_blank" rel="noopener" href="${yt}">Search on YouTube</a>
+          ${x.t.notes ? `<a class="btn alt" target="_blank" rel="noopener" href="${esc(x.t.notes)}">Open notes</a>` : ""}
+        </div></div>`;
+    }).join("") + `</section>`;
+  });
+  $("list").innerHTML = html || `<div class="empty">No topics match "${esc(q)}". Try a shorter word.</div>`;
+  const p = total ? Math.round(got / total * 100) : 0;
+  $("pct").textContent = `${got} of ${total} topics done (${p}%)`;
+  $("bar").style.width = p + "%";
+}
+$("list").addEventListener("click", e => {
+  const el = e.target.closest(".topic"); if (!el) return;
+  if (e.target.classList.contains("chk")) { done[el.dataset.id] = e.target.checked; save(); render(); return; }
+  if (e.target.classList.contains("t")) el.classList.toggle("open");
+});
+$("branch").onchange = () => { fillSem(); render(); };
+$("sem").onchange = render;
+$("q").oninput = render;
+fillSem(); render();
+</script>
+</body>
+</html>
